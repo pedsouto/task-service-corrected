@@ -1,5 +1,6 @@
 package com.pedsouto.taskservice.infra.security;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,18 +26,24 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         final String authorizationHeader = request.getHeader("Authorization");
 
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            final String token = authorizationHeader.substring(7);
-            final String username = jwtUtil.extractUsername(token);
+            try {
+                final String token = authorizationHeader.substring(7);
+                final String username = jwtUtil.extractUsername(token);
 
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username, authorizationHeader);
+                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username, authorizationHeader);
 
-                if (jwtUtil.validateToken(token, userDetails.getUsername())) {
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
+                    if (jwtUtil.validateToken(token, userDetails.getUsername())) {
+                        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                                userDetails, null, userDetails.getAuthorities());
 
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
                 }
+            } catch (JwtException | IllegalArgumentException ex) {
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token JWT inválido ou expirado");
+                return;
             }
         }
 
